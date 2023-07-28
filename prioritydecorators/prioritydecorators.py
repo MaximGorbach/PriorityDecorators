@@ -102,6 +102,42 @@ def decorate_object(obj_method, func, priority = 5) -> DecoratorHandle:
     * The rest of the arguments should be the same as the arguments for the original function
     
     Returns a `DecoratorHandle` which can be used to undecorate
+
+    ## Example
+    ```python
+    class A:
+        num: int = 2
+
+        def get_num(self):
+            print(self.num)
+
+        def greeting(self, name):
+            print(f"Hi {name}, I'm {self.num}")
+
+
+    def f1(obj, next_hook, name):
+        print("f1 executed")
+        next_hook(name + "1")
+
+    def f2(obj, next_hook, name):
+        print("f2 executed")
+        next_hook(name + "2")
+
+    a = A()
+    handle1 = decorate_object(a.greeting, f1, priority=6)
+    handle2 = decorate_object(a.greeting, f2)
+    a.greeting("Max")
+    handle1.undecorate()
+    handle2.undecorate()
+    a.greeting("Max")
+    ```
+    Expected output:
+    ```
+    f1 executed
+    f2 executed
+    Hi Max12, I'm 2
+    Hi Max, I'm 2
+    ```
     """
     new_decorator = Decorator(func, priority=priority)
     if isinstance(obj_method.__func__, DecoratedFunction):
@@ -117,6 +153,7 @@ def decorate_object(obj_method, func, priority = 5) -> DecoratorHandle:
 def decorate_class(cls, cls_func, decorate_func, priority = 5) -> DecoratorHandle:
     """ 
     Adds a decorator to the class function. \\
+    This means that any new object of the class will have the decorator applied to the method. \\
     Higher priority decorators will be executed first. \\
     Decorator functions should have arguments:
     * `obj` - this is equivalent to self; the object the function is being called on
@@ -124,27 +161,9 @@ def decorate_class(cls, cls_func, decorate_func, priority = 5) -> DecoratorHandl
     * The rest of the arguments should be the same as the arguments for the original function
 
     Returns a `DecoratorHandle` which can be used to undecorate
-    """
-    new_decorator = Decorator(decorate_func, priority=priority)
-    closure = cls_func.__closure__
-    if closure is not None and isinstance(closure[0].cell_contents, DecoratedFunction):
-        h = closure[0].cell_contents
-        h.add_decorator(new_decorator)
-    else:
-        h = DecoratedFunction(cls_func, decorating_class=True)
-        h.add_decorator(new_decorator)
-        setattr(cls, cls_func.__name__, h.class_method())
-    return DecoratorHandle(h, new_decorator)
 
-
-
-
-
-
-
-
-
-if __name__ == "__main__":
+    ## Example
+    ```python
     class A:
         num: int = 2
 
@@ -156,19 +175,36 @@ if __name__ == "__main__":
 
 
     def f1(obj, next_hook, name):
-        print("hi")
+        print("f1 executed")
         next_hook(name + "1")
 
     def f2(obj, next_hook, name):
-        print("bye")
+        print("f2 executed")
         next_hook(name + "2")
 
     handle1 = decorate_class(A, A.greeting, f1)
-    handle2 = decorate_class(A, A.greeting, f2)
+    handle2 = decorate_class(A, A.greeting, f2, priority=6)
     a = A()
-    # handle1 = hook_object(a.greeting, f1, priority=6)
-    # handle2 = hook_object(a.greeting, f2)
     a.greeting("Max")
     handle1.undecorate()
     handle2.undecorate()
     a.greeting("Max")
+    ```
+    Expected output:
+    ```
+    f2 executed
+    f1 executed
+    Hi Max12, I'm 2
+    Hi Max, I'm 2
+    ```
+    """
+    new_decorator = Decorator(decorate_func, priority=priority)
+    closure = cls_func.__closure__
+    if closure is not None and isinstance(closure[0].cell_contents, DecoratedFunction):
+        h = closure[0].cell_contents
+        h.add_decorator(new_decorator)
+    else:
+        h = DecoratedFunction(cls_func, decorating_class=True)
+        h.add_decorator(new_decorator)
+        setattr(cls, cls_func.__name__, h.class_method())
+    return DecoratorHandle(h, new_decorator)
